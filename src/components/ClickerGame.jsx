@@ -1,97 +1,102 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Zap, Play, Pause } from 'lucide-react';
 
-export default function ClickerGame() {
-  const DURATION = 10; // seconds
-  const [timeLeft, setTimeLeft] = useState(DURATION);
+const STORAGE_KEY = 'best-clicks';
+
+const ClickerGame = () => {
   const [running, setRunning] = useState(false);
-  const [score, setScore] = useState(0);
-  const [best, setBest] = useState(() => Number(localStorage.getItem('best-clicks') || 0));
-  const intervalRef = useRef(null);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [clicks, setClicks] = useState(0);
+  const [best, setBest] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? parseInt(saved, 10) : 0;
+    });
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (!running) return;
-    intervalRef.current = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(intervalRef.current);
-          setRunning(false);
-          setBest((b) => {
-            const next = Math.max(b, score);
-            localStorage.setItem('best-clicks', String(next));
-            return next;
-          });
-          return DURATION;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => clearInterval(intervalRef.current);
-  }, [running, score]);
+    if (timeLeft <= 0) return;
 
-  const start = () => {
-    setScore(0);
-    setTimeLeft(DURATION);
-    setRunning(true);
-  };
+    timerRef.current = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearTimeout(timerRef.current);
+  }, [running, timeLeft]);
+
+  useEffect(() => {
+    if (timeLeft === 0) {
+      setRunning(false);
+      if (clicks > best) {
+        setBest(clicks);
+        localStorage.setItem(STORAGE_KEY, String(clicks));
+      }
+    }
+  }, [timeLeft, clicks, best]);
 
   const toggle = () => {
+    if (timeLeft === 0) return; // can't resume after end
     setRunning((r) => !r);
   };
 
-  const click = () => {
-    if (!running) return;
-    setScore((s) => s + 1);
+  const startOver = () => {
+    setRunning(false);
+    setTimeLeft(10);
+    setClicks(0);
   };
 
-  const progress = ((DURATION - timeLeft) / DURATION) * 100;
+  const handleClick = () => {
+    if (!running) return;
+    setClicks((c) => c + 1);
+  };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 backdrop-blur-md">
-      <div className="flex items-center gap-2 text-fuchsia-400 mb-3">
-        <Zap className="w-5 h-5" />
-        <h2 className="font-semibold">10s Click Challenge</h2>
-      </div>
-
-      <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-        <div className="h-full bg-fuchsia-500" style={{ width: `${progress}%` }} />
+    <div className="flex flex-col rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-white/90">
+          <Zap className="h-5 w-5" />
+          <h3 className="font-medium">10s Click Challenge</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggle}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-3 py-1.5 text-sm text-white hover:bg-indigo-600 active:scale-[0.98] transition"
+            disabled={timeLeft === 0}
+          >
+            {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {running ? 'Pause' : 'Start'}
+          </button>
+          <button
+            onClick={startOver}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-        <div>
-          <p className="text-white/60 text-xs">Time</p>
-          <p className="text-white text-xl font-bold">{timeLeft}s</p>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <div className="text-xs text-white/60">Time</div>
+          <div className="text-2xl font-semibold text-white">{timeLeft}s</div>
         </div>
-        <div>
-          <p className="text-white/60 text-xs">Score</p>
-          <p className="text-white text-xl font-bold">{score}</p>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <div className="text-xs text-white/60">Clicks</div>
+          <div className="text-2xl font-semibold text-white">{clicks}</div>
         </div>
-        <div>
-          <p className="text-white/60 text-xs">Best</p>
-          <p className="text-white text-xl font-bold">{best}</p>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <div className="text-xs text-white/60">Best</div>
+          <div className="text-2xl font-semibold text-white">{best}</div>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button
-          onClick={start}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-fuchsia-500/90 hover:bg-fuchsia-500 text-black font-medium transition"
-        >
-          <Play className="w-4 h-4" /> Start
-        </button>
-        <button
-          onClick={toggle}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 hover:border-white/30 bg-white/10 hover:bg-white/15 transition"
-        >
-          <Pause className="w-4 h-4" /> {running ? 'Pause' : 'Resume'}
-        </button>
-        <button
-          onClick={click}
-          className="ml-auto inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 to-pink-500 text-black font-bold shadow hover:opacity-90 transition w-full sm:w-auto"
-        >
-          Tap!
-        </button>
-      </div>
+      <button
+        onClick={handleClick}
+        className={`mt-4 h-28 rounded-xl border border-white/10 text-lg font-semibold text-white transition active:scale-[0.98] ${
+          running ? 'bg-emerald-500/20 hover:bg-emerald-500/30' : 'bg-white/5 hover:bg-white/10'
+        }`}
+      >
+        {timeLeft === 0 ? 'Time up!' : running ? 'Tap! Tap! Tap!' : 'Press Start'}
+      </button>
     </div>
   );
-}
+};
+
+export default ClickerGame;
